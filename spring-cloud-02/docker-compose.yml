@@ -1,0 +1,54 @@
+# Docker Compose 演示（本课）
+# 在仓库根目录或本课目录执行：
+#   docker compose up --build -d
+# 停止并清理：
+#   docker compose down -v
+
+name: spring-cloud-02
+
+services:
+  eureka:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-02
+        MODULE: spring-cloud-02-service
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka:8761/eureka/"
+    ports:
+      - "8761:8761"
+
+  provider:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-02
+        MODULE: spring-cloud-02-provider
+    environment:
+      EUREKA_INSTANCE_PREFERIPADDRESS: true
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka:8761/eureka/"
+    depends_on:
+      eureka:
+        condition: service_started
+    ports:
+      - "7777:7777"
+    restart: unless-stopped
+
+  consumer:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-02
+        MODULE: spring-cloud-02-consumer
+    environment:
+      EUREKA_INSTANCE_PREFERIPADDRESS: true
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka:8761/eureka/"
+    depends_on:
+      eureka:
+        condition: service_started
+    ports:
+      - "8888:8888"
+    restart: unless-stopped

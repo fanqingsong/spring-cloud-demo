@@ -1,11 +1,16 @@
-# 本地基础设施：链路追踪 + Kafka（Spring Cloud Stream 示例）
-# 启动：docker compose up -d
+# Docker Compose 演示（本课）
+# 在仓库根目录或本课目录执行：
+#   docker compose up --build -d
+# 停止并清理：
+#   docker compose down -v
+
+name: spring-cloud-24
+
 services:
   zipkin:
     image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/openzipkin/zipkin:3.4
     ports:
       - "9411:9411"
-
   kafka:
     image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/apache/kafka:3.8.0
     ports:
@@ -13,12 +18,154 @@ services:
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,PLAINTEXT_INTERNAL://0.0.0.0:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:9094
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+  config-server:
+    restart: unless-stopped
+
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-24
+        MODULE: spring-cloud-config-server-24
+    ports:
+      - "8888:8888"
+  eureka:
+    restart: unless-stopped
+
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-24
+        MODULE: spring-cloud-service-24
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://roncoo:123456@eureka:8761/eureka/"
+      SPRING_SECURITY_USER_NAME: roncoo
+      SPRING_SECURITY_USER_PASSWORD: 123456
+    ports:
+      - "8761:8761"
+  auth-server:
+    restart: unless-stopped
+
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-24
+        MODULE: spring-cloud-auth-server-24
+    environment:
+      APP_OAUTH2_ISSUER: "http://auth-server:9000"
+    depends_on:
+      eureka:
+        condition: service_started
+    ports:
+      - "9000:9000"
+  provider:
+    restart: unless-stopped
+
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-24
+        MODULE: spring-cloud-provider-24
+    environment:
+      EUREKA_INSTANCE_PREFERIPADDRESS: true
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://roncoo:123456@eureka:8761/eureka/"
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://config:config-secret@config-server:8888"
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: "http://auth-server:9000"
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: "http://zipkin:9411/api/v2/spans"
+    depends_on:
+      eureka:
+        condition: service_started
+      config-server:
+        condition: service_started
+      auth-server:
+        condition: service_started
+      zipkin:
+        condition: service_started
+    ports:
+      - "7778:7778"
+  consumer:
+    restart: unless-stopped
+
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-24
+        MODULE: spring-cloud-consumer-24
+    environment:
+      EUREKA_INSTANCE_PREFERIPADDRESS: true
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://roncoo:123456@eureka:8761/eureka/"
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://config:config-secret@config-server:8888"
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: "http://auth-server:9000"
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: "http://zipkin:9411/api/v2/spans"
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_SPRING_ISSUER_URI: "http://auth-server:9000"
+    depends_on:
+      eureka:
+        condition: service_started
+      config-server:
+        condition: service_started
+      auth-server:
+        condition: service_started
+      provider:
+        condition: service_started
+      zipkin:
+        condition: service_started
+    ports:
+      - "7779:7779"
+  gateway:
+    restart: unless-stopped
+
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-24
+        MODULE: spring-cloud-gateway-24
+    environment:
+      EUREKA_INSTANCE_PREFERIPADDRESS: true
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://roncoo:123456@eureka:8761/eureka/"
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://config:config-secret@config-server:8888"
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: "http://auth-server:9000"
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: "http://zipkin:9411/api/v2/spans"
+    depends_on:
+      eureka:
+        condition: service_started
+      config-server:
+        condition: service_started
+      auth-server:
+        condition: service_started
+      provider:
+        condition: service_started
+      zipkin:
+        condition: service_started
+    ports:
+      - "9876:9876"
+  stream:
+    restart: unless-stopped
+
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-24
+        MODULE: spring-cloud-stream-24
+    environment:
+      SPRING_CLOUD_STREAM_KAFKA_BINDER_BROKERS: "kafka:9094"
+    depends_on:
+      kafka:
+        condition: service_started
+    ports:
+      - "7780:7780"

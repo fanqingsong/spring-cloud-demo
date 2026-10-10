@@ -32,9 +32,25 @@
 | 22 | [spring-cloud-22](spring-cloud-22/README.md) | 网关全局过滤器、Feign 降级 | `GlobalFilter`、Feign `fallback` |
 | 23 | [spring-cloud-23](spring-cloud-23/README.md) | 网关路由、OpenFeign 熔断 | `spring.cloud.gateway.routes`、`lb://` |
 | 24 | [spring-cloud-24](spring-cloud-24/README.md) | Spring 官方云原生栈综合 | Config、Authorization Server/JWT、Zipkin、Stream/Kafka、SpringDoc |
+| 25 | [spring-cloud-25](spring-cloud-25/README.md) | **Nacos** 注册发现 + 配置中心 | `nacos-discovery` / `nacos-config`、`spring.config.import`、`@RefreshScope` |
+| 26 | [spring-cloud-26](spring-cloud-26/README.md) | Nacos + **Gateway** + **OpenFeign** | `lb://` 路由、Feign fallback、Resilience4j |
+| 27 | [spring-cloud-27](spring-cloud-27/README.md) | Nacos **多实例 + 权重** | 双 Provider、`spring.cloud.nacos.discovery.weight` |
 
 > **说明**：原视频课次 **01、03、07、15、21** 本仓库无独立代码，请对照视频或跳过。  
 > **环境**：JDK 21、Maven 3.9+；根 POM 为 Spring Boot 3.4.7 + Spring Cloud 2024.0.3。
+
+### Docker 一键体验
+
+每一课目录 `spring-cloud-XX` 下均有 **`docker-compose.yml`**（共享仓库根目录 `docker/Dockerfile` 在镜像内 Maven 编译）。**无需本地 JDK/Maven**，仅需 Docker：
+
+```bash
+cd spring-cloud-06   # 任选一课
+docker compose up --build -d
+docker compose logs -f
+docker compose down -v
+```
+
+各课 **README** 中的「Docker 一键启动」小节说明验证方式。重新生成 Compose 文件（维护用）：`python3 scripts/generate-docker-compose.py`。
 
 - 教程视频：[免费篇](http://www.roncoo.com/course/view/e4189c9db6474745b5e578983cddd112)
 - 教程视频：[Spring boot全集](http://www.roncoo.com/course/view/c99516ea604d4053908c1768d6deee3d#boxTwo)
@@ -59,9 +75,9 @@
 | Netflix Hystrix / Dashboard | 已停止维护 | **Resilience4j**（`spring-cloud-starter-circuitbreaker-resilience4j`） |
 | Netflix Zuul 1 | 已停止维护 | **Spring Cloud Gateway** |
 | Turbine 聚合监控 | 依赖 Hystrix，已过时 | 模块保留为 **Actuator** 入口；生产环境请用 **Micrometer + Prometheus/Grafana** |
-| Eureka | 维护模式，仍可用 | 继续 **`spring-cloud-starter-netflix-eureka-*`**（教学场景足够；新项目可评估 Nacos/Consul） |
+| Eureka | 维护模式，仍可用 | 02–23 课仍用 **`spring-cloud-starter-netflix-eureka-*`**；**Nacos 替代方案见 [spring-cloud-25](spring-cloud-25/README.md)** |
 
-- 根目录 `pom.xml` 为 BOM 父工程；**02–12、13–24** 课均已按「一课一文件夹」聚合。
+- 根目录 `pom.xml` 为 BOM 父工程；**02–12、13–27** 课均已按「一课一文件夹」聚合；Nacos 使用 **Spring Cloud Alibaba** BOM（见根 POM）。
 - 配置文件中仍可能保留 **Zuul/Ribbon/Hystrix 注释** 以便对照原视频。
 - 完整网关/熔断示例见 **`spring-cloud-23`**（Gateway + Resilience4j + OpenFeign）。
 - **Spring 官方栈扩展**见 **`spring-cloud-24`**（Config Server、Authorization Server、Micrometer Tracing/Zipkin、Gateway JWT、Spring Cloud Stream/Kafka、SpringDoc OpenAPI）。详见 [spring-cloud-24/README.md](spring-cloud-24/README.md)。

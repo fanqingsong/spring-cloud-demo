@@ -2,6 +2,7 @@ package com.roncoo.education;
 
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -27,6 +28,9 @@ import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
 
 @Configuration
 public class AuthorizationServerConfiguration {
+
+	@Value("${app.oauth2.issuer:http://localhost:9000}")
+	private String issuer;
 
 	@Bean
 	@Order(1)
@@ -67,7 +71,7 @@ public class AuthorizationServerConfiguration {
 
 	@Bean
 	AuthorizationServerSettings authorizationServerSettings() {
-		return AuthorizationServerSettings.builder().issuer("http://localhost:9000").build();
+		return AuthorizationServerSettings.builder().issuer(issuer).build();
 	}
 
 	@Bean

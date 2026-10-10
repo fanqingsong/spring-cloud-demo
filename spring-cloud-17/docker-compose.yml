@@ -1,0 +1,76 @@
+# Docker Compose 演示（本课）
+# 在仓库根目录或本课目录执行：
+#   docker compose up --build -d
+# 停止并清理：
+#   docker compose down -v
+
+name: spring-cloud-17
+
+services:
+  eureka:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-17
+        MODULE: spring-cloud-service-17
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://roncoo:123456@eureka:8761/eureka/"
+      EUREKA_CLIENT_SERVICEURL_RONCOOZONE: "http://roncoo:123456@eureka:8761/eureka/"
+      SPRING_SECURITY_USER_NAME: roncoo
+      SPRING_SECURITY_USER_PASSWORD: 123456
+    ports:
+      - "8761:8761"
+
+  provider-1:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-17
+        MODULE: spring-cloud-provider-17
+    environment:
+      EUREKA_INSTANCE_PREFERIPADDRESS: true
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://roncoo:123456@eureka:8761/eureka/"
+      SERVER_PORT: 7778
+    depends_on:
+      eureka:
+        condition: service_started
+    ports:
+      - "7778:7778"
+    restart: unless-stopped
+
+  provider-2:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-17
+        MODULE: spring-cloud-provider-17
+    environment:
+      EUREKA_INSTANCE_PREFERIPADDRESS: true
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://roncoo:123456@eureka:8761/eureka/"
+      SERVER_PORT: 7779
+    depends_on:
+      eureka:
+        condition: service_started
+    ports:
+      - "7779:7779"
+    restart: unless-stopped
+
+  consumer:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-17
+        MODULE: spring-cloud-consumer-17
+    environment:
+      EUREKA_INSTANCE_PREFERIPADDRESS: true
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://roncoo:123456@eureka:8761/eureka/"
+    depends_on:
+      eureka:
+        condition: service_started
+    ports:
+      - "8888:8888"
+    restart: unless-stopped

@@ -35,3 +35,19 @@
 ## 与后续课程
 
 - **第 10 课**：引入 **OpenFeign**，减少 RestTemplate 模板代码。
+
+        ## Docker 一键启动
+
+        本课已提供 **Docker Compose**，无需本地安装 JDK/Maven 即可启动演示（首次会镜像内 Maven 编译，耗时较长）。
+
+        ```bash
+        cd spring-cloud-09
+        docker compose up --build -d
+        ```
+
+        - 查看日志：`docker compose logs -f`
+        - 停止：`docker compose down -v`
+        - 验证：Eureka：http://localhost:8761（`roncoo` / `123456`）；Consumer：http://localhost:8888
+- Eureka 控制台默认账号：`roncoo` / `123456`
+
+        > 容器内已通过环境变量将 Eureka 地址改为 `eureka`（或第 05 课集群 hostname），并开启 `prefer-ip-address` 以便服务间调用。

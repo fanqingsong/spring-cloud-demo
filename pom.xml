@@ -21,6 +21,7 @@
 	<properties>
 		<java.version>21</java.version>
 		<spring-cloud.version>2024.0.3</spring-cloud.version>
+		<spring-cloud-alibaba.version>2023.0.3.2</spring-cloud-alibaba.version>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
 
@@ -30,6 +31,13 @@
 				<groupId>org.springframework.cloud</groupId>
 				<artifactId>spring-cloud-dependencies</artifactId>
 				<version>${spring-cloud.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+			<dependency>
+				<groupId>com.alibaba.cloud</groupId>
+				<artifactId>spring-cloud-alibaba-dependencies</artifactId>
+				<version>${spring-cloud-alibaba.version}</version>
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>
@@ -56,5 +64,8 @@
 		<module>spring-cloud-22</module>
 		<module>spring-cloud-23</module>
 		<module>spring-cloud-24</module>
+		<module>spring-cloud-25</module>
+		<module>spring-cloud-26</module>
+		<module>spring-cloud-27</module>
 	</modules>
 </project>

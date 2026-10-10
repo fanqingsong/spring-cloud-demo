@@ -52,3 +52,18 @@ eureka.client.serviceUrl.defaultZone=http://localhost:8761/eureka/
 
 - **第 04 课**：在 Eureka 上增加 Actuator、实例 ID、续约参数等运维向配置。
 - **第 06 课**：Consumer 开始用 **RestTemplate** 按服务名调用 Provider 的 REST 接口。
+
+## Docker 一键启动
+
+本课已提供 **Docker Compose**，无需本地安装 JDK/Maven 即可启动演示（首次会镜像内 Maven 编译，耗时较长）。
+
+```bash
+cd spring-cloud-02
+docker compose up --build -d
+```
+
+- 查看日志：`docker compose logs -f`
+- 停止：`docker compose down -v`
+- 验证：Eureka 控制台 http://localhost:8761 应看到 provider 与 consumer
+
+> 容器内已通过环境变量将 Eureka 地址改为 `eureka`（或第 05 课集群 hostname），并开启 `prefer-ip-address` 以便服务间调用。

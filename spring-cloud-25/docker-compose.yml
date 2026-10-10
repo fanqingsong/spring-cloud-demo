@@ -1,0 +1,69 @@
+# Docker Compose 演示（本课）
+# 在仓库根目录或本课目录执行：
+#   docker compose up --build -d
+# 停止并清理：
+#   docker compose down -v
+
+name: spring-cloud-25
+
+services:
+  nacos:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/nacos/nacos-server:v2.4.3
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: "false"
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8848/nacos/v1/console/health/readiness || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+      start_period: 30s
+  nacos-init:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/curlimages/curl:8.10.1
+    volumes:
+      - ./nacos/init-config.sh:/init-config.sh:ro
+    environment:
+      NACOS_SERVER: nacos:8848
+    entrypoint: ["/bin/sh", "/init-config.sh"]
+    depends_on:
+      nacos:
+        condition: service_healthy
+  provider:
+    restart: unless-stopped
+
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-25
+        MODULE: spring-cloud-25-provider
+    environment:
+      NACOS_SERVER_ADDR: "nacos:8848"
+    depends_on:
+      nacos-init:
+        condition: service_completed_successfully
+    ports:
+      - "7777:7777"
+  consumer:
+    restart: unless-stopped
+
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-25
+        MODULE: spring-cloud-25-consumer
+    environment:
+      NACOS_SERVER_ADDR: "nacos:8848"
+    depends_on:
+      nacos-init:
+        condition: service_completed_successfully
+      provider:
+        condition: service_started
+    ports:
+      - "8888:8888"

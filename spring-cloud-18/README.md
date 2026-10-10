@@ -32,3 +32,19 @@ Actuator 提供 **/actuator/health** 等端点，是后续 **K8s 探针、监控
 ## 与后续课程
 
 - **第 19 课**：增加 **Turbine 课位模块** 与第二个 Consumer 身份。
+
+        ## Docker 一键启动
+
+        本课已提供 **Docker Compose**，无需本地安装 JDK/Maven 即可启动演示（首次会镜像内 Maven 编译，耗时较长）。
+
+        ```bash
+        cd spring-cloud-18
+        docker compose up --build -d
+        ```
+
+        - 查看日志：`docker compose logs -f`
+        - 停止：`docker compose down -v`
+        - 验证：Eureka：http://localhost:8761（`roncoo` / `123456`）；Consumer：http://localhost:8888
+- Eureka 控制台默认账号：`roncoo` / `123456`
+
+        > 容器内已通过环境变量将 Eureka 地址改为 `eureka`（或第 05 课集群 hostname），并开启 `prefer-ip-address` 以便服务间调用。

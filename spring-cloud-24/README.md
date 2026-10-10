@@ -41,20 +41,9 @@
 
 ## 启动顺序
 
-1. 基础设施（可选，用于 Zipkin / Kafka）：
+1. **Docker 一键启动（推荐）**：在本课目录执行 `docker compose up --build -d`，会同时启动 Zipkin、Kafka 与全部 Java 模块（详见下文「Docker 一键启动」）。
 
-   ```bash
-   cd spring-cloud-24
-   docker compose up -d
-   ```
-
-2. Config Server → Eureka → Auth Server → Provider → Consumer → Gateway → Stream（Kafka 需已启动）
-
-3. 编译：
-
-   ```bash
-   mvn -pl spring-cloud-24 -am compile
-   ```
+2. **本地 IDE / Maven 启动**：先 `docker compose up -d zipkin kafka`，再按 Config Server → Eureka → Auth Server → Provider → Consumer → Gateway → Stream 顺序启动；编译：`mvn -pl spring-cloud-24 -am compile`
 
 ## 快速验证
 
@@ -103,3 +92,19 @@ curl -X POST 'http://localhost:7780/messages?body=hello-kafka'
 - Eureka：`roncoo` / `123456`
 - Config Server：`config` / `config-secret`
 - OAuth Client：`demo-client` / `demo-secret`
+
+        ## Docker 一键启动
+
+        本课已提供 **Docker Compose**，无需本地安装 JDK/Maven 即可启动演示（首次会镜像内 Maven 编译，耗时较长）。
+
+        ```bash
+        cd spring-cloud-24
+        docker compose up --build -d
+        ```
+
+        - 查看日志：`docker compose logs -f`
+        - 停止：`docker compose down -v`
+        - 验证：Zipkin http://localhost:9411；先取 Token（见 README）再访问 Gateway http://localhost:9876；Stream POST http://localhost:7780/messages?body=hi
+- Eureka 控制台默认账号：`roncoo` / `123456`
+
+        > 容器内已通过环境变量将 Eureka 地址改为 `eureka`（或第 05 课集群 hostname），并开启 `prefer-ip-address` 以便服务间调用。

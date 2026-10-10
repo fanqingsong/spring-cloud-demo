@@ -1,0 +1,82 @@
+# Docker Compose 演示（本课）
+# 在仓库根目录或本课目录执行：
+#   docker compose up --build -d
+# 停止并清理：
+#   docker compose down -v
+
+name: spring-cloud-27
+
+services:
+  nacos:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/nacos/nacos-server:v2.4.3
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: "false"
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8848/nacos/v1/console/health/readiness || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 36
+      start_period: 30s
+  provider-high:
+    restart: unless-stopped
+
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-27
+        MODULE: spring-cloud-27-provider
+    environment:
+      NACOS_SERVER_ADDR: "nacos:8848"
+      NACOS_DISCOVERY_WEIGHT: 100
+      PROVIDER_INSTANCE_LABEL: "weight-high"
+    depends_on:
+      nacos:
+        condition: service_healthy
+    ports:
+      - "7777:7777"
+  provider-low:
+    restart: unless-stopped
+
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-27
+        MODULE: spring-cloud-27-provider
+    environment:
+      NACOS_SERVER_ADDR: "nacos:8848"
+      SERVER_PORT: 7778
+      NACOS_DISCOVERY_WEIGHT: 1
+      PROVIDER_INSTANCE_LABEL: "weight-low"
+    depends_on:
+      nacos:
+        condition: service_healthy
+    ports:
+      - "7778:7778"
+  consumer:
+    restart: unless-stopped
+
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-27
+        MODULE: spring-cloud-27-consumer
+    environment:
+      NACOS_SERVER_ADDR: "nacos:8848"
+    depends_on:
+      nacos:
+        condition: service_healthy
+      provider-high:
+        condition: service_started
+      provider-low:
+        condition: service_started
+    ports:
+      - "8888:8888"

@@ -38,3 +38,19 @@
 ## 与后续课程
 
 - **第 06 课**：在「能安全注册」的前提下，开始 **REST 调用与多 Provider 实例**。
+
+        ## Docker 一键启动
+
+        本课已提供 **Docker Compose**，无需本地安装 JDK/Maven 即可启动演示（首次会镜像内 Maven 编译，耗时较长）。
+
+        ```bash
+        cd spring-cloud-05
+        docker compose up --build -d
+        ```
+
+        - 查看日志：`docker compose logs -f`
+        - 停止：`docker compose down -v`
+        - 验证：浏览器打开 http://localhost:8761（或 8762/8763），Eureka 控制台账号 `roncoo` / `123456`
+- Eureka 控制台默认账号：`roncoo` / `123456`（三节点见 8761/8762/8763）
+
+        > 容器内已通过环境变量将 Eureka 地址改为 `eureka`（或第 05 课集群 hostname），并开启 `prefer-ip-address` 以便服务间调用。

@@ -1,0 +1,110 @@
+# Docker Compose 演示（本课）
+# 在仓库根目录或本课目录执行：
+#   docker compose up --build -d
+# 停止并清理：
+#   docker compose down -v
+
+name: spring-cloud-05
+
+services:
+  eureka-1:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-05
+        MODULE: spring-cloud-05-service-01
+    hostname: roncoo1
+    networks:
+      default:
+        aliases:
+          - roncoo1
+    environment:
+      EUREKA_INSTANCE_HOSTNAME: roncoo1
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://roncoo:123456@roncoo1:8761/eureka/,http://roncoo:123456@roncoo2:8762/eureka/,http://roncoo:123456@roncoo3:8763/eureka/"
+      SPRING_SECURITY_USER_NAME: roncoo
+      SPRING_SECURITY_USER_PASSWORD: 123456
+    ports:
+      - "8761:8761"
+
+  eureka-2:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-05
+        MODULE: spring-cloud-05-service-02
+    hostname: roncoo2
+    networks:
+      default:
+        aliases:
+          - roncoo2
+    environment:
+      EUREKA_INSTANCE_HOSTNAME: roncoo2
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://roncoo:123456@roncoo1:8761/eureka/,http://roncoo:123456@roncoo2:8762/eureka/,http://roncoo:123456@roncoo3:8763/eureka/"
+      SPRING_SECURITY_USER_NAME: roncoo
+      SPRING_SECURITY_USER_PASSWORD: 123456
+    ports:
+      - "8762:8762"
+
+  eureka-3:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-05
+        MODULE: spring-cloud-05-service-03
+    hostname: roncoo3
+    networks:
+      default:
+        aliases:
+          - roncoo3
+    environment:
+      EUREKA_INSTANCE_HOSTNAME: roncoo3
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://roncoo:123456@roncoo1:8761/eureka/,http://roncoo:123456@roncoo2:8762/eureka/,http://roncoo:123456@roncoo3:8763/eureka/"
+      SPRING_SECURITY_USER_NAME: roncoo
+      SPRING_SECURITY_USER_PASSWORD: 123456
+    ports:
+      - "8763:8763"
+
+  provider:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-05
+        MODULE: spring-cloud-05-provider
+    environment:
+      EUREKA_INSTANCE_PREFERIPADDRESS: true
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://roncoo:123456@roncoo1:8761/eureka/,http://roncoo:123456@roncoo2:8762/eureka/,http://roncoo:123456@roncoo3:8763/eureka/"
+    depends_on:
+      eureka-1:
+        condition: service_started
+      eureka-2:
+        condition: service_started
+      eureka-3:
+        condition: service_started
+    ports:
+      - "7777:7777"
+    restart: unless-stopped
+
+  consumer:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        LESSON: spring-cloud-05
+        MODULE: spring-cloud-05-consumer
+    environment:
+      EUREKA_INSTANCE_PREFERIPADDRESS: true
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://roncoo:123456@roncoo1:8761/eureka/,http://roncoo:123456@roncoo2:8762/eureka/,http://roncoo:123456@roncoo3:8763/eureka/"
+    depends_on:
+      eureka-1:
+        condition: service_started
+      eureka-2:
+        condition: service_started
+      eureka-3:
+        condition: service_started
+    ports:
+      - "8888:8888"
+    restart: unless-stopped
