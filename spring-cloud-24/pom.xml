@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>com.roncoo.education</groupId>
+		<artifactId>spring-cloud-demo</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
+		<relativePath>../pom.xml</relativePath>
+	</parent>
+
+	<artifactId>spring-cloud-24</artifactId>
+	<packaging>pom</packaging>
+	<name>spring-cloud-24</name>
+	<description>Spring 官方栈：Config、Tracing、OAuth2、Gateway、Stream</description>
+
+	<modules>
+		<module>spring-cloud-config-server-24</module>
+		<module>spring-cloud-service-24</module>
+		<module>spring-cloud-auth-server-24</module>
+		<module>spring-cloud-bean-24</module>
+		<module>spring-cloud-api-24</module>
+		<module>spring-cloud-provider-24</module>
+		<module>spring-cloud-consumer-24</module>
+		<module>spring-cloud-gateway-24</module>
+		<module>spring-cloud-stream-24</module>
+	</modules>
+
+	<properties>
+		<springdoc.version>2.8.6</springdoc.version>
+	</properties>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>com.roncoo.education</groupId>
+				<artifactId>spring-cloud-bean-24</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.roncoo.education</groupId>
+				<artifactId>spring-cloud-api-24</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.springdoc</groupId>
+				<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+				<version>${springdoc.version}</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+</project>

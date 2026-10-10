@@ -1,5 +1,5 @@
 package com.roncoo.education.feign;
-import org.springframework.cloud.netflix.feign.FeignClient;
+import org.springframework.cloud.openfeign.FeignClient;
 
 import com.roncoo.education.feign.configuration.RcFeignConfiguration;
 import com.roncoo.education.feign.fallback.RcFeignFallback;

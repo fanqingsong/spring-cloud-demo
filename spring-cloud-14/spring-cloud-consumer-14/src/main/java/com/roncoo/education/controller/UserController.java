@@ -8,7 +8,8 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.client.RestTemplate;
 
-import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+
 
 /**
  * @author wujing
@@ -24,7 +25,7 @@ public class UserController {
 	@Autowired
 	private RestTemplate restTemplate;
 
-	@HystrixCommand(fallbackMethod = "getFallback")
+	@CircuitBreaker(name = "getUser", fallbackMethod = "getFallback")
 	@RequestMapping(value = "/{id}", method = RequestMethod.GET)
 	public String get(@PathVariable(value = "id") int id) {
 		return restTemplate.getForObject(URL, String.class, id);
