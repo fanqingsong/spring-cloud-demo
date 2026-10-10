@@ -97,6 +97,6 @@ docker compose up --build -d
 
 - 查看日志：`docker compose logs -f`
 - 停止：`docker compose down -v`
-- 验证：Eureka 控制台 http://localhost:8761 应看到 provider 与 consumer；`curl http://localhost:8888/hello` 应经由 Consumer 调到 Provider
+- 验证：Eureka 控制台 http://localhost:8761 应看到 provider 与 consumer；等 Compose 健康检查通过后再 `curl http://localhost:8888/hello`（应经由 Consumer 调到 Provider）。过早请求会因注册表尚未同步而 500（`No instances available for spring-cloud-provider`）
 
 > 容器内已通过环境变量将 Eureka 地址改为 `eureka`（或第 05 课集群 hostname），并开启 `prefer-ip-address` 以便服务间调用。

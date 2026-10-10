@@ -18,6 +18,13 @@ services:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka:8761/eureka/"
     ports:
       - "8761:8761"
+    # 等 Tomcat / Eureka HTTP 真正起来，避免客户端首拉注册表 Connection refused
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8761/eureka/apps >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+      start_period: 20s
 
   provider:
     build:
@@ -31,10 +38,16 @@ services:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka:8761/eureka/"
     depends_on:
       eureka:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "7777:7777"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:7777/api/hello >/dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+      start_period: 20s
 
   consumer:
     build:
@@ -46,9 +59,13 @@ services:
     environment:
       EUREKA_INSTANCE_PREFERIPADDRESS: true
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka:8761/eureka/"
+      # 缩短拉取间隔，避免首拉失败后默认等 30s 才看到 Provider
+      EUREKA_CLIENT_REGISTRY_FETCH_INTERVAL_SECONDS: 5
     depends_on:
       eureka:
-        condition: service_started
+        condition: service_healthy
+      provider:
+        condition: service_healthy
     ports:
       - "8888:8888"
     restart: unless-stopped
