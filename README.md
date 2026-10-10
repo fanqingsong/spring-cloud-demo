@@ -7,7 +7,7 @@
 ### 学习指南
 
 - **课程总索引**：[docs/课程索引.md](docs/课程索引.md)
-- 每一课目录下的 **`README.md`** 含：学习目标、功能说明、实现要点、启动验证（示例：[spring-cloud-06/README.md](spring-cloud-06/README.md)）。
+- 每一课目录下的 **`README.md`** 按同一结构讲解：**知识点是什么、有什么用、本课怎么配**，并附学习目标、启动验证（建议先看 [第 04 课](spring-cloud-04/README.md) 的写法）。
 
 ### 课程教学点一览
 

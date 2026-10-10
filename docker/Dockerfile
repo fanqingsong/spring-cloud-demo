@@ -7,11 +7,20 @@ FROM ${MAVEN_IMAGE} AS build
 ARG LESSON
 ARG MODULE
 WORKDIR /src
+COPY docker/settings.xml /root/.m2/settings.xml
 COPY . .
-RUN mvn -pl "${LESSON}/${MODULE}" -am -Dmaven.test.skip=true -q package \
-    && JAR="$(find "/src/${LESSON}/${MODULE}/target" -maxdepth 1 -name '*.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' | head -1)" \
-    && test -n "$JAR" \
-    && cp "$JAR" /app.jar
+RUN set -e; \
+    for attempt in 1 2 3; do \
+      if mvn -s /root/.m2/settings.xml -pl "${LESSON}/${MODULE}" -am -Dmaven.test.skip=true -q package; then \
+        break; \
+      fi; \
+      if [ "$attempt" -eq 3 ]; then exit 1; fi; \
+      echo "Maven package failed (attempt ${attempt}/3), retrying in 15s..."; \
+      sleep 15; \
+    done; \
+    JAR="$(find "/src/${LESSON}/${MODULE}/target" -maxdepth 1 -name '*.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' | head -1)"; \
+    test -n "$JAR"; \
+    cp "$JAR" /app.jar
 
 FROM ${RUNTIME_IMAGE}
 WORKDIR /app

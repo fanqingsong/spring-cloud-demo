@@ -1,56 +1,109 @@
 # 第 19 课 · 监控聚合与多 Consumer
 
+## 一句话先懂
+
+原视频用 **Netflix Turbine** 把多个服务的 Hystrix 流汇到一块大屏。Hystrix 停更后，那种「一条管道看全站熔断」的组件不再作为本仓库的运行时依赖。本课保留 **turbine 这个模块名和端口**，让你对照视频目录，但跑起来它只是一个挂了 Actuator、并注册到 Eureka 的普通进程。
+
+同时，Consumer 换成了另一个身份：`spring-cloud-consumer2`（端口 8886），用来演示「注册中心上可以同时有多个消费者应用」。
+
 ## 学习目标
 
-- 了解原 **Netflix Turbine** 聚合多条熔断流的概念（现网多用 **Micrometer + Prometheus/Grafana**）
-- 理解 **多个 Consumer 应用名** 同时注册到 Eureka 的场景
-- 阅读 **turbine 模块** 升级说明（本仓库改为 **Actuator** 占位）
+- 理解「监控聚合」想解决什么：熔断指标散落在每个实例上，运维想看一张总图
+- 知道今天业界常用替代是 **Micrometer + Prometheus + Grafana**，而不是 Turbine
+- 能在 Eureka 里认出 `spring-cloud-consumer2` 和 `spring-cloud-turbine`
+- 注意本课 **properties 端口是 8886**，部分 Compose 文件曾映射成 8888——以进程真实监听端口为准
 
-## 本课讲什么
+## 本课在整条链路里的位置
 
-原课程用 Turbine 把多个服务的 Hystrix 流汇总到一个 Dashboard。Hystrix 下线后，本仓库保留 **`spring-cloud-turbine-19`** 模块名，POM 改为 **Actuator + Eureka Client**，properties 中 **turbine.\*** 配置保留作对照。
+18 课是单 Consumer 的 health。本课多一个「监控入口进程」和第二个 Consumer 名字。20 课开始加网关空壳。
 
-Consumer 模块使用应用名 **`spring-cloud-consumer2`**，端口 **8886**，metadata `cluster=RONCOO`。
+---
+
+## 知识点讲解
+
+### 1. 原 Turbine 在干什么（概念仍然有用）
+
+**是什么**
+
+每个开了 Hystrix 的应用会吐一条实时流（谁熔断了、成功率多少）。Turbine 订阅**多个应用名**的流，合并后给 Dashboard 画图。
+
+本课 properties 还留着：
+
+```properties
+turbine.app-config=spring-cloud-consumer,spring-cloud-consumer2
+```
+
+意思是「请聚合这两个 Consumer」。**当前 POM 没有 Netflix Turbine 依赖**，这行配置不会真的去拉流。读它是为了看懂视频里的字段含义。
+
+**有什么用（概念）**
+
+微服务数量上去之后，你不可能开 20 个 Hystrix Dashboard 来回切。聚合层把「多实例指标」收拢到一个入口。
+
+**现在用什么**
+
+每个应用的 Actuator 暴露 Prometheus 格式指标，由 Prometheus 按时来拉，Grafana 做图。这是官方和社区都还在演进的路。模块 `spring-cloud-turbine-19` 只提供 `/actuator/health`，端口 **9999**。
+
+### 2. 多个 Consumer 应用名
+
+**是什么**
+
+到目前为止，调用方一直叫 `spring-cloud-consumer`。本课改成 **`spring-cloud-consumer2`**，并在实例元数据里标 `cluster=RONCOO`：
+
+```properties
+eureka.instance.metadata-map.cluster=RONCOO
+```
+
+**有什么用**
+
+- 同一套业务可以有「网关后面的 BFF」「给内部用的 Consumer」等多个入口应用
+- 旧 Turbine 按应用名和 cluster 过滤要聚合谁
+- 元数据本身不改变负载均衡，只是挂在实例上的标签（类似 04 课的 datacenter）
+
+控制台里你**不会**自动看到 `spring-cloud-consumer`，除非再启动一份旧名字的进程。本课演示的是「换一个身份注册」，不是「同时起两个 Consumer 进程」。
+
+### 3. 端口 8886 vs 8888
+
+`application.properties` 写的是 **8886**。若 Docker Compose 只映射了 `8888:8888` 又没改 `SERVER_PORT`，容器内仍听 8886，宿主机 8888 会连不上。遇到这种情况：
+
+- 看启动日志里的 `Tomcat started on port`
+- 或直接 `curl http://localhost:8886/user/1`
+
+20 课 Compose 已按 8886 对齐，本课若发现不一致，以日志为准。
+
+业务代码与 18 课同类：RestTemplate 熔断、Feign fallback。Turbine 模块**没有**业务接口。
+
+---
 
 ## 模块结构
 
-- 五模块 `*-19`
-- **`spring-cloud-turbine-19`**（9999，`spring-cloud-turbine`）
-- **`spring-cloud-service-19`** 含 Hystrix Dashboard 依赖已移除（升级后仅 Eureka + Security）
-
-## 核心功能
-
-1. 双 Consumer 身份设计（配置中常写 `consumer` + `consumer2`；完整演示可能需**再启一个 consumer 实例**或复制配置）
-2. Turbine 模块：学习 **监控入口** 概念，运行 `TurbineApplication` 可注册到 Eureka
-3. Feign + Resilience4j 延续前课
-
-## 如何实现
-
-- 不要期望 Turbine UI 与原视频一致；请结合 README 与 **Actuator** 端点理解演进
-- 若跑聚合实验：确保 Eureka 上至少有 **consumer2** 与 provider 实例
+| 模块 | 端口 | 应用名 |
+|------|------|--------|
+| service-19 | 8761 | `spring-cloud-server` |
+| provider-19 | 7778 | `spring-cloud-provider` |
+| consumer-19 | **8886** | **`spring-cloud-consumer2`** |
+| turbine-19 | 9999 | `spring-cloud-turbine` |
+| bean / api | — | 同前 |
 
 ## 建议启动与验证
 
-1. 启动 service → provider → consumer-19 → turbine-19
-2. 查看 Eureka 是否出现 `spring-cloud-consumer2`、`spring-cloud-turbine`
-3. 访问 turbine 进程 Actuator health
+1. service → provider → consumer → turbine
+2. Eureka 应出现 `SPRING-CLOUD-CONSUMER2`、`SPRING-CLOUD-TURBINE`
+3. `curl http://localhost:8886/user/1`、`/feign/user/1`
+4. `curl http://localhost:9999/actuator/health`
+5. 不要期待视频里的 Turbine 聚合大盘
 
 ## 与后续课程
 
-- **第 20 课**：新增 **Spring Cloud Gateway** 模块（9876）。
+- **第 20 课**：新增 Gateway 进程（9876），本课的 Consumer2 / Turbine 仍会跟着走一会儿
 
-        ## Docker 一键启动
+## Docker 一键启动
 
-        本课已提供 **Docker Compose**，无需本地安装 JDK/Maven 即可启动演示（首次会镜像内 Maven 编译，耗时较长）。
+```bash
+cd spring-cloud-19
+docker compose up --build -d
+```
 
-        ```bash
-        cd spring-cloud-19
-        docker compose up --build -d
-        ```
-
-        - 查看日志：`docker compose logs -f`
-        - 停止：`docker compose down -v`
-        - 验证：Eureka：http://localhost:8761（`roncoo` / `123456`）；Consumer：http://localhost:8888
-- Eureka 控制台默认账号：`roncoo` / `123456`
-
-        > 容器内已通过环境变量将 Eureka 地址改为 `eureka`（或第 05 课集群 hostname），并开启 `prefer-ip-address` 以便服务间调用。
+- 日志：`docker compose logs -f`
+- 停止：`docker compose down -v`
+- 验证：先看 Consumer 实际端口再 curl；Turbine health 在 9999
+- Eureka：[http://localhost:8761](http://localhost:8761)，`roncoo` / `123456`
