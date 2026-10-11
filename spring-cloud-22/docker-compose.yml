@@ -55,7 +55,7 @@ services:
       eureka:
         condition: service_started
     ports:
-      - "8888:8888"
+      - "8886:8886"
     restart: unless-stopped
 
   gateway:

@@ -2,22 +2,23 @@
 
 ## 一句话先懂
 
-大门（20 课）已经在了。本课给大门加一个**门卫**：请求头里必须带 `token=roncoo`，否则 401。门卫默认关着，和原视频里自定义 Zuul Filter 默认禁用一致。
+大门（20 课）已经在了。本课给大门加一个**门卫**：请求头里必须带 `token=roncoo`，否则 401。门卫已打开（`gateway.token-filter.enabled=true`）。
 
 另一条线在 Consumer：Feign 接口指定 **fallback 实现类**，Provider 挂了返回兜底，而不是把异常甩给用户。
 
-路由表仍然几乎是空的——「门卫会检查证件」和「路线图」是两件事，路线图在 23 课。
+路由表也已补上：`/feign/**`、`/user/**` 转到 Consumer，`/api/**` 转到 Provider。先过门卫，再按路牌转发。
 
 ## 学习目标
 
-- 理解 Gateway **GlobalFilter**：所有进入网关的请求都会经过，类似 Zuul 的 PreFilter
+- 理解 Gateway **GlobalFilter**：命中路由的请求会经过，类似 Zuul 的 PreFilter
 - 会用配置开关 `gateway.token-filter.enabled` 控制过滤器是否生效
+- 读懂 `Path=/feign/** → lb://spring-cloud-consumer2`：路牌和门卫是两件事
 - 理解 Feign `fallback`：接口的「备用实现」，必须是 Spring Bean
-- 能停 Provider 后从 `/feign/user/{id}` 看到 `"system error"` 一类兜底（直连 Consumer，不经空路由网关）
+- 能停 Provider 后从 `/feign/user/{id}` 看到 `"system error"` 一类兜底
 
 ## 本课在整条链路里的位置
 
-20 课空壳 → 本课横切逻辑 → 23 课才把 `/api/**` 接到 Provider。
+20 课空壳大门 → 本课门卫 + 路牌 + Feign fallback（已开 circuitbreaker）→ 23 课把 Consumer 应用名改回 `spring-cloud-consumer`，并走完整熔断演示。
 
 ---
 
@@ -27,13 +28,19 @@
 
 **是什么**
 
-`TokenGlobalFilter` 实现 `GlobalFilter` + `Ordered`。请求进入 Gateway 后、转发到下游前，先看 Header `token` 是否等于 `roncoo`。不对就返回 **401**，body 为 `token is error`。
+`TokenGlobalFilter` 实现 `GlobalFilter` + `Ordered`。请求**命中某条路由后**、转发到下游前，先看 Header `token` 是否等于 `roncoo`。不对就返回 **401**，body 为 `token is error`。
 
 ```java
 @ConditionalOnProperty(name = "gateway.token-filter.enabled", havingValue = "true")
 ```
 
-只有显式写成 `true` 时，这个 Bean 才存在。本课 properties **没写或为 false**，所以默认你带不带 token 都能打到网关（然后因为没路由，多半还是 404）。
+只有显式写成 `true` 时，这个 Bean 才存在。本课已打开：
+
+```properties
+gateway.token-filter.enabled=true
+```
+
+**GlobalFilter 只对匹配到路由的请求生效。** 没有路牌时，带不带 token 都是 404，门卫根本轮不到上场。这就是之前 `curl :9876/feign/user/1` 一直 404 的原因。
 
 **有什么用**
 
@@ -41,21 +48,47 @@
 
 **生活类比**
 
-前台先查工牌，再决定带不带你进楼。查工牌的人（Filter）和墙上的办公室地图（routes）不是同一张纸。
-
-开启实验（改网关配置后重启）：
-
-```properties
-gateway.token-filter.enabled=true
-```
+前台先查工牌，再按墙上的办公室地图带你进楼。查工牌的人（Filter）和地图（routes）不是同一张纸，但**没有地图时前台不会放人进去**，你只会听到「这个房间不存在」。
 
 ```bash
-curl -H "token: roncoo" http://localhost:9876/任意路径
+# 没 token / token 错 → 401 token is error
+curl -i http://localhost:9876/feign/user/1
+
+# token 正确 → User JSON
+curl -H "token: roncoo" http://localhost:9876/feign/user/1
 ```
 
-没有正确 token 应 401。**即使 token 对了，本课仍没有业务路由**，不要用 9876 测 User JSON。
+`token: roncoo` 和 `token:roncoo` 都可以。
 
-### 2. Feign fallback 类
+### 2. 路由：大门上的路牌
+
+```properties
+spring.cloud.gateway.routes[0].uri=lb://spring-cloud-provider
+spring.cloud.gateway.routes[0].predicates[0]=Path=/api/**
+
+spring.cloud.gateway.routes[1].uri=lb://spring-cloud-consumer2
+spring.cloud.gateway.routes[1].predicates[0]=Path=/feign/**
+
+spring.cloud.gateway.routes[2].uri=lb://spring-cloud-consumer2
+spring.cloud.gateway.routes[2].predicates[0]=Path=/user/**
+```
+
+Consumer 应用名仍是 `spring-cloud-consumer2`，端口 **8886**。`lb://` 后面必须和 Eureka 里的名字一致。
+
+```text
+浏览器  GET :9876/feign/user/1   Header token: roncoo
+    → Gateway 门卫校验 token
+    → 匹配 /feign/** → Consumer :8886/feign/user/1
+    → Consumer 再用 Feign 调 Provider /api/user/{id}
+
+浏览器  GET :9876/api/user/1     Header token: roncoo
+    → Gateway 门卫校验 token
+    → 匹配 /api/** → Provider :7778/api/user/1
+```
+
+经 9876 调业务接口**必须带 token**。直连 8886 / 7778 不经过门卫。
+
+### 3. Feign fallback 类
 
 **是什么**
 
@@ -74,13 +107,9 @@ curl -H "token: roncoo" http://localhost:9876/任意路径
 | RestTemplate | 同类里的方法 | `GET /user/{id}` | `"自定义信息"` |
 | Feign | 独立实现类 | `GET /feign/user/{id}` | `"system error"` |
 
-Consumer 应用名仍是 `spring-cloud-consumer2`，properties 端口 **8886**。Compose 若映射 8888 但未改 `SERVER_PORT`，请看启动日志里的真实端口（与 19 课同一类问题）。
+本课已打开 `spring.cloud.openfeign.circuitbreaker.enabled=true`。只写 `fallback=` 不够，必须把 Feign 包进 CircuitBreaker，失败和「Eureka 里没有 Provider 实例」才会走 `RcFeignFallback`。没开这个开关时，Consumer 会直接 500（`Load balancer does not contain an instance`）。
 
-本课 **没有** `spring.cloud.openfeign.circuitbreaker.enabled=true`（23 课才打开）。有 fallback 类时，部分失败路径仍可能进入降级；不要和 23 课的开关混为一谈。
-
-### 3. 为什么业务验证要直连 Consumer
-
-网关没有 `Path=/feign/** → lb://...`。经 9876 访问业务路径不会转到 8886。本课验证降级：
+验证降级建议直连 Consumer（少一层网关干扰）：
 
 ```bash
 curl http://localhost:8886/feign/user/1   # 先确认正常
@@ -92,18 +121,29 @@ curl http://localhost:8886/feign/user/1   # system error
 
 ## 模块结构
 
-七模块：五模块 + `gateway-22`（9876）+ `turbine-22`（9999，Actuator 占位）。
+七模块：五模块 + `gateway-22`（9876）+ `turbine-22`（9999，Actuator 占位）。`gateway-22` 需要 `spring-boot-maven-plugin` 打可执行 jar，否则 Docker 里会 `no main manifest attribute` 起不来。
 
 ## 建议启动与验证
 
-1. 启动全套
-2. 直连 Consumer 测正常调用与停 Provider 后的两种兜底
-3. 可选：打开 token 开关，看 9876 对错误 token 返回 401
+1. `docker compose up --build -d`，等 Eureka 里出现 Provider / Consumer（大约十几秒）
+2. 经网关测门卫 + 转发
+3. 直连 Consumer 对照；可选：停 Provider 看兜底
 4. Eureka 账号 `roncoo` / `123456`
+
+```bash
+# 经网关（必须带 token）
+curl -i http://localhost:9876/feign/user/1
+curl -H "token: roncoo" http://localhost:9876/feign/user/1
+curl -H "token: roncoo" http://localhost:9876/api/user/1
+
+# 直连对照（不经过门卫）
+curl http://localhost:8886/feign/user/1
+curl http://localhost:7778/api/user/1
+```
 
 ## 与后续课程
 
-- **第 23 课**：补上路由表，并打开 OpenFeign circuitbreaker；可以从 `http://localhost:9876/api/user/1` 一路打到 Provider
+- **第 23 课**：Consumer 应用名改回 `spring-cloud-consumer`、端口 8888；门卫默认关；继续用 `9876` 走完整熔断演示
 
 ## Docker 一键启动
 
@@ -112,7 +152,13 @@ cd spring-cloud-22
 docker compose up --build -d
 ```
 
+只重建网关、不要把 Eureka 一起重建时：
+
+```bash
+docker compose build gateway && docker compose up -d --no-deps gateway
+```
+
 - 日志：`docker compose logs -f`
 - 停止：`docker compose down -v`
-- 验证：以 Consumer 实际端口访问 `/feign/user/1`；网关 9876 无路由
+- 验证：`curl -H "token: roncoo" http://localhost:9876/feign/user/1`
 - Eureka：[http://localhost:8761](http://localhost:8761)
