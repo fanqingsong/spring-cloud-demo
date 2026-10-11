@@ -48,7 +48,7 @@ turbine.app-config=spring-cloud-consumer,spring-cloud-consumer2
 | **Micrometer** | 应用内统一指标 API；配合 `spring-boot-starter-web` 等会自动采集 JVM、Tomcat、`http.server.requests` 等 |
 | **micrometer-registry-prometheus** | 增加 Prometheus 格式 registry，并启用 Actuator 的 `prometheus` 端点（见下节） |
 | **Prometheus** | 按配置定时 **拉取（pull）** 各实例的 `/actuator/prometheus` 并存储 |
-| **Grafana** | 连 Prometheus 做大盘与告警（本课 Compose 已预置数据源） |
+| **Grafana** | 连 Prometheus 做大盘与告警（本课 Compose 预置数据源 + **Spring Cloud 19** 文件夹下的概览 Dashboard） |
 
 模块 `spring-cloud-turbine-19` 仍保留名称与端口 **9999**，与视频目录对照；**不再**承担 Netflix Turbine 聚合，指标与其它 Spring 服务一样交给 Prometheus 收拢。
 
@@ -144,7 +144,9 @@ Compose 会一并启动 **prometheus**（9090）与 **grafana**（3000，默认 
    - `curl -s http://localhost:8886/actuator/prometheus | head`
 2. 打开 [Prometheus Targets](http://localhost:9090/targets)，`spring-cloud-19` 下三个 target 应为 **UP**。
 3. 打开 [Grafana](http://localhost:3000)，数据源 **Prometheus** 已自动指向 Compose 内的 Prometheus。
-4. 在 **Explore** 里试查例如 `jvm_memory_used_bytes`、`http_server_requests_seconds_count`；先打几次 `curl` 业务接口再查 HTTP 指标更明显。
+4. 左侧 **Dashboards** → 文件夹 **Spring Cloud 19** → 打开 **Spring Cloud 19 · Micrometer 概览**（首次部署需 `docker compose up -d --force-recreate grafana` 以加载 provisioning）。
+5. 若面板无曲线：先打几次 `curl http://localhost:8886/user/1`，等待一个 scrape 周期（约 15s）再刷新 Dashboard。
+6. 也可在 **Explore** 里试查 `jvm_memory_used_bytes`、`http_server_requests_seconds_count`。
 
 > 端点暴露说明见上文 **§2.3**；Compose 用环境变量，本地启动请在 `application.properties` 写 `management.endpoints.web.exposure.include=health,info,prometheus`。
 
@@ -187,7 +189,7 @@ docker compose up --build -d
 ```
 
 - 日志：`docker compose logs -f`
-- 停止：`docker compose down -v`
+- 停止：`docker compose down -v`（会删除 **grafana-data** 卷，Grafana 恢复为默认 **admin / admin**）
 
 | 地址 | 用途 |
 |------|------|
@@ -196,8 +198,47 @@ docker compose up --build -d
 | [http://localhost:9999/actuator/health](http://localhost:9999/actuator/health) | Turbine 模块 health |
 | [http://localhost:9090/targets](http://localhost:9090/targets) | Prometheus 抓取状态 |
 | [http://localhost:3000](http://localhost:3000) | Grafana（`admin` / `admin`） |
+| [http://localhost:3000/d/spring-cloud-19-overview](http://localhost:3000/d/spring-cloud-19-overview) | 本课 Micrometer 概览（直达） |
+
+### Grafana 登录失败（Invalid username or password）？
+
+1. **先确认账号**：用户名是 **`admin`**（全小写），默认密码 **`admin`**（见 `docker-compose.yml` 里 `GF_SECURITY_ADMIN_*`）。
+2. **环境变量只在「第一次创建 admin」时生效**：若你曾在 Grafana 里改过密码，或旧容器里已有 `/var/lib/grafana/grafana.db`，Compose 里的 `GF_SECURITY_ADMIN_PASSWORD=admin` **不会**把密码改回去。
+3. **输错多次会被临时封禁**（日志里可能有 `too many consecutive incorrect login attempts`）。本课 Compose 已关闭暴力破解封禁；若你仍遇到，等 1～2 分钟再试，或按下面重置。
+
+**重置为 admin / admin（会清空 Grafana 本地数据，Dashboard 会在下次启动时由 provisioning 重新导入）：**
+
+```bash
+cd spring-cloud-19
+docker compose stop grafana
+docker volume rm spring-cloud-19_grafana-data
+docker compose up -d grafana
+```
+
+启动日志里应出现 `Created default admin user=admin`，然后再登录。
+
+### Grafana Dashboard 列表为空？
+
+Grafana **只在容器启动时**读取 `provisioning` 配置。若 Grafana 先于 Dashboard 配置文件启动（或你后来才 `git pull` 了 `docker/grafana/...`），启动日志里会出现类似：
+
+`can't read dashboard provisioning files from directory .../provisioning/dashboards`
+
+此时 UI 里 **Dashboards** 会是空的，但 **Explore** 仍可用。处理办法：
+
+```bash
+cd spring-cloud-19
+docker compose up -d --force-recreate grafana
+docker compose logs grafana | grep provisioning.dashboard
+```
+
+应看到 `starting to provision dashboards` 且无 error。然后：
+
+- **Dashboards** → 文件夹 **Spring Cloud 19** → **Spring Cloud 19 · Micrometer 概览**
+- 或直接打开 [http://localhost:3000/d/spring-cloud-19-overview](http://localhost:3000/d/spring-cloud-19-overview)
 
 监控相关文件：
 
 - `docker/prometheus/prometheus.yml` — scrape 配置
 - `docker/grafana/provisioning/datasources/prometheus.yml` — Grafana 默认数据源
+- `docker/grafana/provisioning/dashboards/dashboards.yml` — Dashboard 自动导入配置
+- `docker/grafana/provisioning/dashboards/json/spring-cloud-19-overview.json` — **Micrometer 概览** 面板 JSON

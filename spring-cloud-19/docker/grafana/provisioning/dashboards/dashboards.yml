@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: spring-cloud-19
+    orgId: 1
+    folder: Spring Cloud 19
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards/json

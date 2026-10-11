@@ -7,6 +7,7 @@
 # 监控：原 Turbine/Hystrix 聚合已过时；本 Compose 附带业界常用替代
 #   Micrometer（应用内） + Prometheus（拉取 /actuator/prometheus） + Grafana（可视化）
 #   Prometheus: http://localhost:9090  Grafana: http://localhost:3000 （admin / admin）
+#   Grafana Dashboard：Dashboards → 文件夹 Spring Cloud 19 → Micrometer 概览
 
 name: spring-cloud-19
 
@@ -103,7 +104,11 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      # 本地演示：输错密码时不短时封禁；生产环境请改为 true 或删除该行
+      GF_AUTH_BRUTE_FORCE_PROTECTION_ENABLED: "false"
     volumes:
+      - grafana-data:/var/lib/grafana
       - ./docker/grafana/provisioning:/etc/grafana/provisioning:ro
     ports:
       - "3000:3000"
@@ -111,3 +116,6 @@ services:
       prometheus:
         condition: service_started
     restart: unless-stopped
+
+volumes:
+  grafana-data:
