@@ -61,9 +61,9 @@ public String getFallback(int id) {   // 参数要能对上，返回类型要兼
 
 **要点**
 
-- `name` 只是这把保险丝的名字，方便日志和监控区分多条调用
+- `name` 只是这把保险丝的名字，方便日志和监控区分多条调用；**必须和** `resilience4j.circuitbreaker.instances.<name>` **对上**
 - fallback 方法必须和原方法在**同一个类**，参数列表兼容（通常多一个 `Throwable` 也可以，以你代码为准）
-- 本课没在 properties 里细调失败次数、打开时长，用的是 Resilience4j **默认阈值**。教学验证用「直接停进程」足够触发
+- 阈值写在 Consumer 的 `application.properties`：最近 10 次、至少 5 次才统计，失败率 50% 跳闸，打开 10s 后再半开探测。注解要生效还需 `resilience4j-spring-boot3` + `spring-boot-starter-aop`
 
 `GET /user/2/{id}` **没有**加熔断，而且指向不存在的 provider2，不要用它做本课实验。
 

@@ -8,7 +8,7 @@
 
 - 理解负载均衡规则的本质：输入是「可用实例列表」，输出是「其中一个」
 - 能读懂 `RoncooCustomRule.choose()` 在干什么
-- 会把自定义类全名配到 `NFLoadBalancerRuleClassName`
+- 会用 `@LoadBalancerClient` 把自定义规则挂到指定服务名（旧视频里的 `NFLoadBalancerRuleClassName` 仅作对照）
 - 知道规则写在 **Consumer 端**（谁发起调用，谁做选择）
 
 ## 本课在整条链路里的位置
@@ -23,11 +23,11 @@
 
 **是什么**
 
-`RoncooCustomRule` 继承 `AbstractLoadBalancerRule`，核心方法 `choose()`：
+`RoncooCustomRule` 实现 `ReactorServiceInstanceLoadBalancer`（原课程是 Ribbon 的 `AbstractLoadBalancerRule`），核心仍是 `choose()`：
 
-1. 向负载均衡器要「当前能连的 Server 列表」
+1. 向 `ServiceInstanceListSupplier` 要「当前能连的实例列表」
 2. 遍历，找到 `port == 7779` 的那一台
-3. 找不到就 `Thread.yield()` 再试（本课演示用，生产不要这么空转）
+3. 找不到则返回空响应（调用失败），不要假设一定有匹配实例
 
 **有什么用**
 
@@ -41,24 +41,24 @@
 
 ### 2. 规则为什么必须配在 Consumer
 
-负载均衡发生在**发请求之前**。Provider 只负责提供 `/api/user/{id}`，它不知道也不应该知道调用方怎么挑自己的兄弟节点。所以：
+负载均衡发生在**发请求之前**。Provider 只负责提供 `/api/user/{id}`，它不知道也不应该知道调用方怎么挑自己的兄弟节点。所以在 Consumer 里用：
 
-```properties
-spring-cloud-provider.ribbon.NFLoadBalancerRuleClassName=com.roncoo.education.configuration.RoncooCustomRule
+```java
+@LoadBalancerClient(name = "spring-cloud-provider", configuration = RoncooCustomRuleConfig.class)
 ```
 
-写在 Consumer 的 `application.properties`，类也放在 Consumer 模块，且必须在 classpath 上（类名写错会回退或启动失败）。
+类也放在 Consumer 模块。`application.properties` 里的 `*.ribbon.NFLoadBalancerRuleClassName` 是旧视频对照，**不会**驱动 Spring Cloud LoadBalancer。
 
-本课还有一行 `spring-cloud-provider2.ribbon...=RandomRule`，但**没有部署 provider2**。这是和 08 课配置对齐留下的，可忽略。`UserController` 里的 `/user/2/{id}` 本课默认调不通。
+本课没有部署 provider2。`UserController` 里的 `/user/2/{id}` 本课默认调不通。
 
 ### 3. 只起一台 7778 时会发生什么
 
 规则写死要 7779。若只启动 provider-01（7778）：
 
-- `choose()` 一直找不到目标
-- 实现里会 yield 循环，调用方可能表现为**卡住或极慢**
+- `choose()` 找不到目标，返回空响应
+- 调用方会看到负载均衡选实例失败
 
-这不是 Eureka 坏了，是规则与实际实例集合不匹配。自定义规则一定要考虑「条件一个都不满足」时的退路（本课实现比较粗糙，故意暴露这一点）。
+这不是 Eureka 坏了，是规则与实际实例集合不匹配。自定义规则一定要考虑「条件一个都不满足」时的退路。
 
 ---
 
