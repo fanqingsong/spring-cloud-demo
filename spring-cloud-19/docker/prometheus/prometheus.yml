@@ -1,0 +1,15 @@
+# Micrometer 指标由各 Spring Boot 应用暴露在 /actuator/prometheus，Prometheus 定时拉取。
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: spring-cloud-19
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - provider:7778
+          - consumer:8886
+          - turbine:9999
+        labels:
+          lesson: spring-cloud-19
