@@ -84,10 +84,72 @@ optional:nacos:spring-cloud-nacos-common.properties?group=SHARED&refresh=true
 
 **建议亲手做一次**
 
-1. `curl http://localhost:8888/user/1`，记住 JSON 里的 `greeting`
-2. 控制台改 `spring-cloud-nacos-provider.properties` 的 `provider.greeting` 并发布
-3. 再 curl，字应已变
-4. 再改 `SHARED` 组的 `spring-cloud-nacos-common.properties`，用 `/config/local` 看共享项
+先确认本课已经起来（`nacos-init` 正常退出即可，它只负责写入演示配置）：
+
+```bash
+cd spring-cloud-25
+docker compose up --build -d
+docker compose ps
+```
+
+控制台：http://localhost:8848/nacos 。本课关闭了鉴权；若仍弹出登录框，用默认账号 `nacos` / `nacos`。
+
+1. 先看当前问候语。Consumer 按服务名找到 Provider，再调 `/api/user/1`：
+
+   ```bash
+   curl -s http://localhost:8888/user/1
+   ```
+
+   `greeting` 应为 `你好，来自 Nacos 配置中心`，`instanceTag` 应为 `provider-primary`。这两项来自 Data ID `spring-cloud-nacos-provider.properties`、Group `DEFAULT_GROUP`。若看到 `默认问候（本地 fallback）`，说明 Nacos 配置没拉到，先看 `docker compose logs nacos-init provider`。
+
+2. 改应用私有配置并发布。控制台：**配置管理 → 配置列表**，编辑 `spring-cloud-nacos-provider.properties`（分组 `DEFAULT_GROUP`）。发布会整份覆盖，删掉的键会回到代码默认值，所以两行都留着：
+
+   ```properties
+   provider.greeting=你好，这是我刚改的
+   provider.instance-tag=provider-primary
+   ```
+
+   等价命令：
+
+   ```bash
+   curl -s -X POST 'http://127.0.0.1:8848/nacos/v1/cs/configs' \
+     --data-urlencode 'dataId=spring-cloud-nacos-provider.properties' \
+     --data-urlencode 'group=DEFAULT_GROUP' \
+     --data-urlencode $'content=provider.greeting=你好，这是我刚改的\nprovider.instance-tag=provider-primary'
+   ```
+
+   返回 `true` 即发布成功。
+
+3. 等一两秒再请求（客户端靠 `?refresh=true` 收推送，不用重启）：
+
+   ```bash
+   curl -s http://localhost:8888/user/1
+   ```
+
+   `greeting` 应已变成 `你好，这是我刚改的`。
+
+4. 再改共享配置。Data ID `spring-cloud-nacos-common.properties` 在 **`SHARED`** 组（不是默认组），Provider 和 Consumer 都在用。先看 Consumer 当前快照：
+
+   ```bash
+   curl -s http://localhost:8888/config/local
+   ```
+
+   `common.course-tag` 初始为 `Roncoo-Nacos-Demo`。控制台把分组筛成 `SHARED` 后编辑，或：
+
+   ```bash
+   curl -s -X POST 'http://127.0.0.1:8848/nacos/v1/cs/configs' \
+     --data-urlencode 'dataId=spring-cloud-nacos-common.properties' \
+     --data-urlencode 'group=SHARED' \
+     --data-urlencode $'content=common.course-tag=我改过的共享标签\ncommon.config-source=nacos-config-center'
+   ```
+
+   再查这三处，`common.course-tag` 都应变成 `我改过的共享标签`；上一步的 `greeting` 不受影响，它在另一份配置里：
+
+   ```bash
+   curl -s http://localhost:8888/config/local
+   curl -s http://localhost:7777/api/config/snapshot
+   curl -s http://localhost:8888/config/via-provider
+   ```
 
 ### 4. 控制台还可以玩、但本课没写进代码的
 

@@ -29,7 +29,8 @@ services:
       - ./nacos/init-config.sh:/init-config.sh:ro
     environment:
       NACOS_SERVER: nacos:8848
-    entrypoint: ["/bin/sh", "/init-config.sh"]
+    # 去掉 CRLF，避免 Windows/WSL 检出后 busybox sh 解析失败
+    entrypoint: ["/bin/sh", "-c", "tr -d '\\r' < /init-config.sh | /bin/sh"]
     depends_on:
       nacos:
         condition: service_healthy
