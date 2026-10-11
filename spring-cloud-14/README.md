@@ -8,6 +8,7 @@
 
 - 能用自己的话区分：**超时、重试、熔断、降级**各管什么
 - 会在 RestTemplate 方法上使用 `@CircuitBreaker` + `fallbackMethod`
+- 能对照 `application.properties` 说出 **闭合 → 打开 → 半开** 每一步谁在决策
 - 知道原视频的 Hystrix 已停更，本仓库用 **Resilience4j**
 - 能用「停掉 Provider 再调 Consumer」验证兜底字符串
 
@@ -63,11 +64,69 @@ public String getFallback(int id) {   // 参数要能对上，返回类型要兼
 
 - `name` 只是这把保险丝的名字，方便日志和监控区分多条调用；**必须和** `resilience4j.circuitbreaker.instances.<name>` **对上**
 - fallback 方法必须和原方法在**同一个类**，参数列表兼容（通常多一个 `Throwable` 也可以，以你代码为准）
-- 阈值写在 Consumer 的 `application.properties`：最近 10 次、至少 5 次才统计，失败率 50% 跳闸，打开 10s 后再半开探测。注解要生效还需 `resilience4j-spring-boot3` + `spring-boot-starter-aop`
+- 阈值写在 Consumer 的 `application.properties`，实例名必须是 `getUser`（见下一节逐项对照）。注解要生效还需 `resilience4j-spring-boot3` + `spring-boot-starter-aop`
 
 `GET /user/2/{id}` **没有**加熔断，而且指向不存在的 provider2，不要用它做本课实验。
 
-### 4. 本课不保护 Feign
+### 4. 熔断的运作过程（对照配置）
+
+配置都在 `spring-cloud-consumer-14` 的 `application.properties`，前缀是 `resilience4j.circuitbreaker.instances.getUser.*`。`getUser` 必须和 `@CircuitBreaker(name = "getUser")` 一致，否则注解走默认阈值，你改的数字不生效。
+
+**三种状态**（家里电闸的三种姿势）
+
+```text
+闭合 CLOSED  ──失败率≥50% 或 慢调用率≥80%──►  打开 OPEN
+     ▲                                              │
+     │                         等满 10s（automatic-transition=true）
+     │                                              ▼
+     └──────── 3 次探测成功 ──────── 半开 HALF_OPEN
+                3 次探测失败 ──────────────► 再打开
+```
+
+| 状态 | 这次请求会不会打 Provider | 失败后调用方看到什么 |
+|------|---------------------------|----------------------|
+| 闭合 | 会，真的发 HTTP | 远程异常 → `getFallback` → `"自定义信息"` |
+| 打开 | **不会**，立刻拒绝 | `CallNotPermittedException` → 同样走 `getFallback` |
+| 半开 | 只放行 **3** 个探测，多出来的仍拒绝 | 探测失败或超额拒绝 → 还是 `getFallback` |
+
+调用方永远看到 `"自定义信息"`，所以**不能只看响应判断状态**。要看 Consumer 日志：闭合/半开时会先打到 Provider（连接拒绝、超时等），打开后远程调用根本不会发生，只有 `调用远程接口异常，返回自定义信息`。
+
+**配置怎么驱动这三态**
+
+| 配置项 | 本课取值 | 在过程里干什么 |
+|--------|----------|----------------|
+| `sliding-window-type` | `COUNT_BASED` | 按**次数**滑动，不是按时间。最近 N 次调用组成窗口 |
+| `sliding-window-size` | `10` | 窗口最多记住最近 10 次（成功 / 失败 / 慢） |
+| `minimum-number-of-calls` | `5` | **至少 5 次**才开始算失败率、慢调用率。避免刚启动 1 次失败就跳闸 |
+| `failure-rate-threshold` | `50` | 窗口内失败率 **≥ 50%** → 闭合变打开 |
+| `slow-call-duration-threshold` | `2s` | 单次调用超过 2 秒，记一笔「慢」（成功但慢也算） |
+| `slow-call-rate-threshold` | `80` | 窗口内慢调用占比 **≥ 80%** → 同样跳闸。和失败率是**两条独立保险丝** |
+| `wait-duration-in-open-state` | `10s` | 打开后先冷静 10 秒，这期间一律不打 Provider |
+| `automatic-transition-from-open-to-half-open-enabled` | `true` | 满 10 秒**自动**进入半开。若为 `false`，要等下一次请求来了才切半开 |
+| `permitted-number-of-calls-in-half-open-state` | `3` | 半开时最多放行 3 个探测。3 个都回来再裁决：达标回闭合，不达标再打开 |
+
+**用本课数字走一遍（停掉 Provider 后连续 `curl /user/1`）**
+
+1. **第 1～4 次（仍闭合）**  
+   窗口里还不满 5 次，`minimum-number-of-calls` 拦着不算比率。每次都会真的访问 `http://spring-cloud-provider/...`，失败后再进 `getFallback`。
+
+2. **第 5 次（跳闸）**  
+   5 次全失败，失败率 100% ≥ `failure-rate-threshold=50`，状态切到**打开**。第 5 次本身已经打过 Provider，返回的仍是 `"自定义信息"`。
+
+3. **随后 10 秒（打开）**  
+   `wait-duration-in-open-state=10s`。再 curl **不会**发 HTTP，熔断器直接拒绝，fallback 立刻返回。这就是保险丝的意义：给下游恢复时间，也给自己留线程。
+
+4. **满 10 秒 → 半开**  
+   `automatic-transition-from-open-to-half-open-enabled=true`，到点自动半开。接下来最多 3 个请求被放去「探路」：
+   - Provider **还停着**：3 次探测都失败 → 再打开，再等 10 秒。
+   - Provider **已起来**：探测成功、失败率掉到阈值以下 → 回到闭合，后面又是正常 JSON。
+
+**两个容易误会的点**
+
+- **慢调用 ≠ 超时掐断**。`slow-call-duration-threshold=2s` 只是统计口径：调完了发现超过 2 秒，记一笔慢。本课没有配 TimeLimiter，熔断器**不会**在 2 秒处把线程砍掉。Provider 完全挂掉时，你看到的是连接失败，走的是「失败率」那条线，不是「慢调用」那条。
+- **fallback 不是熔断本身**。第 1～4 次还没跳闸，也会进 `getFallback`——那是「这次调用失败了，给个替代品」。打开之后的 fallback，才是「保险丝已经跳了，连试都不试」。两个入口同一个方法，状态不同。
+
+### 5. 本课不保护 Feign
 
 `/feign/user/{id}` 还是光秃秃的远程调用。停 Provider 后：
 
@@ -87,8 +146,8 @@ public String getFallback(int id) {   // 参数要能对上，返回类型要兼
 ## 建议启动与验证
 
 1. 全套启动后：`curl http://localhost:8888/user/1` 应是 User JSON
-2. **停掉 Provider**，再 curl 同一地址，应变成 `自定义信息`
-3. 重新启动 Provider，等重新注册后，再 curl 应恢复 JSON
+2. **停掉 Provider**，连续 curl 同一地址：前几次仍会打到已挂的下游再降级；大约第 5 次后进入打开，10 秒内再 curl 不再打 Provider，响应一直是 `自定义信息`
+3. 打开期间把 Provider 拉起来，**立刻** curl 仍是兜底（还在等 10 秒）；等半开探测通过后，再 curl 应恢复 JSON
 
 ## 与后续课程
 
