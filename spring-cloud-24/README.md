@@ -267,38 +267,106 @@ OpenFeign 打开了 circuitbreaker 开关，但**没有**像 26 课那样的 fal
 
 ### 1. 拿 Token 再走网关
 
-见上文 curl。再试 `GET http://localhost:9876/feign/user/1`。
+```bash
+curl -s -u 'demo-client:demo-secret' \
+  -d 'grant_type=client_credentials&scope=api.read' \
+  http://localhost:9000/oauth2/token
+```
 
-直连 Consumer（7779）通常**没有** Resource Server，可作对照。Provider 的 `GET /api/user/config/demo` 能看到来自 Config 的 welcome / sharedMessage，**需要 JWT**。
-
-### 2. 刷新配置
-
-改 `config-repo/spring-cloud-provider.properties` 后，带 Token 调用 `POST http://localhost:7778/actuator/refresh`，再读 `/api/user/config/demo`。
-
-### 3. Zipkin
-
-先按上文拿到 Token，再打两条带 JWT 的路径（都会进同一套追踪）：
+把返回的 `access_token` 填到下面两条请求里：
 
 ```bash
 curl -s -H "Authorization: Bearer <token>" http://localhost:9876/api/user/1
 curl -s -H "Authorization: Bearer <token>" http://localhost:9876/feign/user/1
 ```
 
+直连 Consumer（7779）通常**没有** Resource Server，可作对照：
+
+```bash
+curl -s http://localhost:7779/feign/user/1
+```
+
+Provider 的 `/api/user/config/demo` 能看到来自 Config 的 welcome / sharedMessage，**需要 JWT**：
+
+```bash
+curl -s -H "Authorization: Bearer <token>" http://localhost:7778/api/user/config/demo
+```
+
+### 2. 刷新配置
+
+先拿 Token，并记下当前配置：
+
+```bash
+curl -s -u 'demo-client:demo-secret' \
+  -d 'grant_type=client_credentials&scope=api.read' \
+  http://localhost:9000/oauth2/token
+
+curl -s -H "Authorization: Bearer <token>" http://localhost:7778/api/user/config/demo
+```
+
+改 `spring-cloud-config-server-24/src/main/resources/config-repo/spring-cloud-provider.properties` 里的 `demo.welcome`，例如改成：
+
+```properties
+demo.welcome=Provider 配置已热更新
+```
+
+Compose 下配置打在镜像里，改完要重建 Config Server 后，再带 Token 刷新并回读：
+
+```bash
+docker compose up --build -d config-server
+
+curl -s -X POST -H "Authorization: Bearer <token>" http://localhost:7778/actuator/refresh
+
+curl -s -H "Authorization: Bearer <token>" http://localhost:7778/api/user/config/demo
+```
+
+本地 IDE 启动时，改完文件后重启 Config Server，再执行上面两条 curl（不必 `docker compose up`）。`welcome` 应变为新文案。`/actuator/refresh` 不带 Token 会 401。
+
+### 3. Zipkin
+
+```bash
+curl -s -u 'demo-client:demo-secret' \
+  -d 'grant_type=client_credentials&scope=api.read' \
+  http://localhost:9000/oauth2/token
+```
+
+把返回的 `access_token` 填到下面两条请求里（都会进同一套追踪）：
+
+```bash
+curl -s -H "Authorization: Bearer <token>" http://localhost:9876/api/user/1
+curl -s -H "Authorization: Bearer <token>" http://localhost:9876/feign/user/1
+```
+
+对照 Provider 日志里的 `[spring-cloud-provider,<traceId>,<spanId>]`：
+
+```bash
+docker compose logs provider | grep "provider find"
+```
+
 打开 [http://localhost:9411](http://localhost:9411)：
 
 1. 左上 **Run Query**（可先在 Service Name 选 `spring-cloud-gateway`）
 2. 点开一条 trace：`/api/user/1` 应能看到 Gateway → Provider；`/feign/user/1` 还应多一跳 Consumer
-3. 对照 Provider 日志里的 `[spring-cloud-provider,<traceId>,<spanId>]`，应与 Zipkin 顶部的 Trace ID 一致
+3. Zipkin 顶部的 Trace ID 应与上面日志里的 `traceId` 一致
 
-若 UI 为空：先确认这次调用是 **200**（401 往往在网关就被拒，下游没有 span）；再确认 Zipkin 已起、Compose 里三个服务的 endpoint 指向 `http://zipkin:9411/api/v2/spans`。
+若 UI 为空：先确认这次调用是 **200**（401 往往在网关就被拒，下游没有 span）；再确认 Zipkin 已起、Compose 里三个服务的 endpoint 指向 `http://zipkin:9411/api/v2/spans`：
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:9411
+docker compose ps zipkin gateway provider consumer
+```
 
 ### 4. Stream
 
 ```bash
-curl -X POST 'http://localhost:7780/messages?body=hello-kafka'
+curl -s -X POST 'http://localhost:7780/messages?body=hello-kafka'
 ```
 
-看 `stream-24` 容器日志是否打印消费内容。
+看 `stream` 容器日志是否打印 `Spring Cloud Stream 收到消息: hello-kafka`：
+
+```bash
+docker compose logs -f --tail=50 stream
+```
 
 ## 默认账号
 
